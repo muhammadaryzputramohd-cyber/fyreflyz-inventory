@@ -59,7 +59,7 @@
           <textarea id="remarks" rows="2" placeholder="Condition, expiry, etc." class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700"></textarea>
         </div>
         <div class="md:col-span-2 lg:col-span-3 flex gap-2">
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded"> <span id="submit-text">Add</span></button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded"><span id="submit-text">Add</span></button>
           <button type="button" id="cancel-edit" class="hidden bg-gray-500 text-white px-4 py-2 rounded">Cancel</button>
         </div>
       </form>
@@ -107,7 +107,8 @@
 /* -----------------------------------------
    CONFIG
 ----------------------------------------- */
-const API = "https://script.google.com/macros/s/AKfycbzwrWNvXqgi2mZLtpxG13XT1t2A1PGk7IgbZsC8x4lnjvBDanWUWh83OWJnQcZ3MYcH/exec";
+/* 🔴 IMPORTANT: REPLACE THIS WITH YOUR REAL WEB APP URL */
+const API = "PASTE_YOUR_WEB_APP_URL_HERE";
 
 let ITEMS = []; // Live data
 
@@ -128,7 +129,7 @@ const title = document.getElementById('form-title');
 const cancelBtn = document.getElementById('cancel-edit');
 
 /* -----------------------------------------
-   LOAD DATA FROM GOOGLE SHEETS
+   LOAD DATA FROM GOOGLE SHEETS (GET)
 ----------------------------------------- */
 async function loadFromSheet() {
   try {
@@ -144,9 +145,6 @@ async function loadFromSheet() {
   }
 }
 
-/* -----------------------------------------
-   SAVE TO GOOGLE SHEETS (NO FETCH → NO CORS)
------------------------------------------ */
 /* -----------------------------------------
    SAVE TO GOOGLE SHEETS (NO FETCH → NO CORS)
 ----------------------------------------- */
@@ -185,7 +183,6 @@ async function saveToSheet() {
     form.submit();
   });
 }
-
 
 /* -----------------------------------------
    RENDER TABLE
@@ -353,4 +350,3 @@ loadFromSheet();
 
 </body>
 </html>
-
