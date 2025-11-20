@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fyreflyz Inventory — Google Sheets Sync</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    body { font-family: system-ui, sans-serif; }
+    .photo-thumb { width:40px; height:40px; object-fit:cover; border-radius:4px; cursor:pointer; }
+    .modal-photo { max-width:300px; max-height:300px; margin:10px 0; border-radius:8px; }
+    @media print { .no-print { display:none !important } }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen p-4 text-gray-900 dark:text-gray-100">
+
+  <div id="app" class="max-w-6xl mx-auto">
+
+    <div class="flex justify-between items-center mb-6 no-print">
+      <h1 class="text-3xl font-bold">Fyreflyz Inventory</h1>
+      <div class="flex gap-2">
+        <button id="theme-toggle" class="text-sm text-gray-500 dark:text-gray-400">Toggle Theme</button>
+        <button id="refresh-btn" class="text-sm text-gray-500 dark:text-gray-400">Refresh</button>
+        <button onclick="window.print()" class="text-sm text-gray-500 dark:text-gray-400">Print</button>
+      </div>
+    </div>
+
+    <div id="status" class="text-sm text-gray-600 dark:text-gray-300 mb-4">Connecting...</div>
+
+    <!-- Form -->
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6 no-print">
+      <h2 class="text-xl font-semibold mb-4" id="form-title">Add New Item</h2>
+      <form id="item-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <input type="hidden" id="edit-id" />
+        <div>
+          <label class="block text-sm font-medium mb-1">Photo</label>
+          <input type="file" id="photo" accept="image/*" class="w-full text-sm" />
+          <img id="photo-preview" class="mt-2 w-20 h-20 object-cover rounded hidden" alt="preview">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Storage #/Name</label>
+          <input type="text" id="storage" placeholder="Cabinet 1" class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Item Name</label>
+          <input required type="text" id="name" placeholder="Item name" class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Quantity</label>
+          <input required type="number" id="quantity" min="0" value="1" class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Notes</label>
+          <input type="text" id="notes" placeholder="Optional" class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700">
+        </div>
+        <div class="md:col-span-2 lg:col-span-3">
+          <label class="block text-sm font-medium mb-1">Remarks</label>
+          <textarea id="remarks" rows="2" placeholder="Condition, expiry, etc." class="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700"></textarea>
+        </div>
+        <div class="md:col-span-2 lg:col-span-3 flex gap-2">
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded"> <span id="submit-text">Add</span></button>
+          <button type="button" id="cancel-edit" class="hidden bg-gray-500 text-white px-4 py-2 rounded">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Search & Totals -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 no-print">
+      <input type="text" id="search" placeholder="Search..." class="border rounded px-3 py-2 w-full md:w-80 bg-white dark:bg-gray-700">
+      <div class="text-sm text-gray-600 dark:text-gray-400">
+        Total items: <span id="total-count">0</span> | Total qty: <span id="total-items">0</span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-gray-100 dark:bg-gray-700 border-b">
+            <tr>
+              <th class="px-2 py-2 text-center">Photo</th>
+              <th class="px-3 py-2">Storage</th>
+              <th class="px-3 py-2">Item</th>
+              <th class="px-3 py-2 text-right">Qty</th>
+              <th class="px-3 py-2">Notes</th>
+              <th class="px-3 py-2">Remarks</th>
+              <th class="px-3 py-2 text-center no-print">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-body" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="text-center py-8 text-gray-500 dark:text-gray-400">No items yet. Add one above!</div>
+    </div>
+  </div>
+
+  <!-- Full Photo Modal -->
+  <div id="photo-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+    <div class="max-w-lg w-full p-4">
+      <img id="full-photo" class="modal-photo w-full" alt="Full size">
+      <button onclick="document.getElementById('photo-modal').classList.add('hidden')" class="mt-4 w-full bg-red-600 text-white py-2 rounded">Close</button>
+    </div>
+  </div>
+
+<script>
+/* -----------------------------------------
+   CONFIG
+----------------------------------------- */
+const API = "https://script.google.com/macros/s/AKfycbzwrWNvXqgi2mZLtpxG13XT1t2A1PGk7IgbZsC8x4lnjvBDanWUWh83OWJnQcZ3MYcH/exec";
+
+let ITEMS = []; // Live in-memory data
+
+/* -----------------------------------------
+   DOM ELEMENTS
+----------------------------------------- */
+const status = document.getElementById('status');
+const tbody = document.getElementById('inventory-body');
+const empty = document.getElementById('empty-state');
+const search = document.getElementById('search');
+const totalCount = document.getElementById('total-count');
+const totalSpan = document.getElementById('total-items');
+const photoPreview = document.getElementById('photo-preview');
+const photoInput = document.getElementById('photo');
+const editId = document.getElementById('edit-id');
+const submitTxt = document.getElementById('submit-text');
+const title = document.getElementById('form-title');
+const cancelBtn = document.getElementById('cancel-edit');
+
+/* -----------------------------------------
+   LOAD SHEET DATA
+----------------------------------------- */
+async function loadFromSheet() {
+  try {
+    status.textContent = "Loading...";
+    const res = await fetch(API);
+    const data = await res.json();
+    ITEMS = data.items || [];
+    render(ITEMS);
+    status.textContent = "Loaded ✓";
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Failed to load";
+  }
+}
+
+/* -----------------------------------------
+   SAVE TO SHEET (AUTO SYNC)
+----------------------------------------- */
+async function saveToSheet() {
+  try {
+    status.textContent = "Saving...";
+    await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: ITEMS })
+    });
+    status.textContent = "Saved ✓";
+  } catch (err) {
+    status.textContent = "Save failed!";
+    console.error(err);
+  }
+}
+
+/* -----------------------------------------
+   RENDER TABLE
+----------------------------------------- */
+function render(list) {
+  tbody.innerHTML = "";
+
+  if (!list.length) {
+    empty.classList.remove("hidden");
+    totalCount.textContent = 0;
+    totalSpan.textContent = 0;
+    return;
+  }
+
+  empty.classList.add("hidden");
+
+  let totalQty = 0;
+
+  list.forEach(item => {
+    totalQty += Number(item.quantity) || 0;
+
+    const tr = document.createElement("tr");
+    tr.className = "hover:bg-gray-50 dark:hover:bg-gray-700";
+    tr.innerHTML = `
+      <td class="px-2 py-2 text-center">
+        ${item.photo ? `<img src="${item.photo}" class="photo-thumb" onclick="showFullPhoto('${item.photo}')">` 
+        : `<div class="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded"></div>`}
+      </td>
+      <td class="px-3 py-2">${item.storage}</td>
+      <td class="px-3 py-2">${item.name}</td>
+      <td class="px-3 py-2 text-right">${item.quantity}</td>
+      <td class="px-3 py-2">${item.notes}</td>
+      <td class="px-3 py-2">${item.remarks}</td>
+      <td class="px-3 py-2 text-center space-x-2 no-print">
+        <button class="text-blue-600 text-xs" onclick="editItem(${item.id})">Edit</button>
+        <button class="text-red-600 text-xs" onclick="deleteItem(${item.id})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  totalCount.textContent = list.length;
+  totalSpan.textContent = totalQty;
+}
+
+/* -----------------------------------------
+   SHOW FULL PHOTO
+----------------------------------------- */
+function showFullPhoto(src) {
+  document.getElementById("full-photo").src = src;
+  document.getElementById("photo-modal").classList.remove("hidden");
+}
+
+/* -----------------------------------------
+   ADD / EDIT ITEM
+----------------------------------------- */
+document.getElementById("item-form").addEventListener("submit", e => {
+  e.preventDefault();
+
+  let id = editId.value ? Number(editId.value) : Date.now();
+
+  let file = photoInput.files[0];
+
+  const updateItem = (photoURL) => {
+    const item = {
+      id,
+      name: document.getElementById("name").value,
+      quantity: Number(document.getElementById("quantity").value),
+      storage: document.getElementById("storage").value,
+      notes: document.getElementById("notes").value,
+      remarks: document.getElementById("remarks").value,
+      photo: photoURL || (ITEMS.find(x => x.id === id)?.photo || "")
+    };
+
+    if (editId.value) {
+      ITEMS = ITEMS.map(x => x.id === id ? item : x);
+    } else {
+      ITEMS.push(item);
+    }
+
+    render(ITEMS);
+    saveToSheet();
+    resetForm();
+  };
+
+  if (file) {
+    let reader = new FileReader();
+    reader.onload = e => updateItem(e.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    updateItem();
+  }
+});
+
+/* -----------------------------------------
+   DELETE ITEM
+----------------------------------------- */
+function deleteItem(id) {
+  if (!confirm("Delete this item?")) return;
+  ITEMS = ITEMS.filter(x => x.id !== id);
+  render(ITEMS);
+  saveToSheet();
+}
+
+/* -----------------------------------------
+   EDIT MODE
+----------------------------------------- */
+function editItem(id) {
+  const it = ITEMS.find(x => x.id === id);
+  if (!it) return;
+
+  document.getElementById("name").value = it.name;
+  document.getElementById("quantity").value = it.quantity;
+  document.getElementById("storage").value = it.storage;
+  document.getElementById("notes").value = it.notes;
+  document.getElementById("remarks").value = it.remarks;
+
+  editId.value = it.id;
+  submitTxt.textContent = "Update";
+  document.getElementById("form-title").textContent = "Edit Item";
+  cancelBtn.classList.remove("hidden");
+
+  if (it.photo) {
+    photoPreview.src = it.photo;
+    photoPreview.classList.remove("hidden");
+  }
+}
+
+/* -----------------------------------------
+   RESET FORM
+----------------------------------------- */
+function resetForm() {
+  document.getElementById("item-form").reset();
+  photoPreview.classList.add("hidden");
+  editId.value = "";
+  submitTxt.textContent = "Add";
+  document.getElementById("form-title").textContent = "Add New Item";
+  cancelBtn.classList.add("hidden");
+}
+
+/* -----------------------------------------
+   SEARCH
+----------------------------------------- */
+search.addEventListener("input", () => {
+  const term = search.value.toLowerCase();
+  const filtered = ITEMS.filter(i =>
+    i.name.toLowerCase().includes(term) ||
+    (i.storage || "").toLowerCase().includes(term) ||
+    (i.notes || "").toLowerCase().includes(term) ||
+    (i.remarks || "").toLowerCase().includes(term)
+  );
+  render(filtered);
+});
+
+/* -----------------------------------------
+   REFRESH BUTTON
+----------------------------------------- */
+document.getElementById("refresh-btn").addEventListener("click", loadFromSheet);
+
+/* -----------------------------------------
+   INITIAL LOAD
+----------------------------------------- */
+loadFromSheet();
+</script>
+
+</body>
+</html>
