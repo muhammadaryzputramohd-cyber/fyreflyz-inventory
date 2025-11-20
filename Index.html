@@ -145,28 +145,42 @@ async function loadFromSheet() {
 }
 
 /* -----------------------------------------
-   SAVE TO GOOGLE SHEETS (CORS-SAFE)
+   SAVE TO GOOGLE SHEETS (NO FETCH → NO CORS)
 ----------------------------------------- */
 async function saveToSheet() {
-  try {
-    status.textContent = "Saving...";
+  status.textContent = "Saving...";
 
-    const payload = { items: ITEMS };
+  return new Promise((resolve) => {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = API;
 
-    // Avoid CORS preflight
-    const body = new URLSearchParams();
-    body.append("data", JSON.stringify(payload));
+    const frameName = "hidden_iframe_" + Date.now();
+    const iframe = document.createElement("iframe");
+    iframe.name = frameName;
+    iframe.style.display = "none";
+    form.target = frameName;
 
-    await fetch(API, {
-      method: "POST",
-      body: body
-    });
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "data";
+    input.value = JSON.stringify({ items: ITEMS });
 
-    status.textContent = "Saved ✓";
-  } catch (err) {
-    status.textContent = "Save failed!";
-    console.error(err);
-  }
+    form.appendChild(input);
+    document.body.appendChild(iframe);
+    document.body.appendChild(form);
+
+    iframe.onload = function () {
+      status.textContent = "Saved ✓";
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        document.body.removeChild(form);
+      }, 500);
+      resolve();
+    };
+
+    form.submit();
+  });
 }
 
 /* -----------------------------------------
