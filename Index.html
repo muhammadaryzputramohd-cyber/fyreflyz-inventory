@@ -147,6 +147,9 @@ async function loadFromSheet() {
 /* -----------------------------------------
    SAVE TO GOOGLE SHEETS (NO FETCH → NO CORS)
 ----------------------------------------- */
+/* -----------------------------------------
+   SAVE TO GOOGLE SHEETS (NO FETCH → NO CORS)
+----------------------------------------- */
 async function saveToSheet() {
   status.textContent = "Saving...";
 
@@ -182,6 +185,7 @@ async function saveToSheet() {
     form.submit();
   });
 }
+
 
 /* -----------------------------------------
    RENDER TABLE
@@ -349,3 +353,4 @@ loadFromSheet();
 
 </body>
 </html>
+
