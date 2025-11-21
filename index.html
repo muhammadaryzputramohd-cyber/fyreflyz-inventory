@@ -107,9 +107,7 @@
 /* -----------------------------------------
    CONFIG
 ----------------------------------------- */
-/* 🔴 IMPORTANT: REPLACE THIS WITH YOUR REAL WEB APP URL */
 const API = "https://script.google.com/macros/s/AKfycbzwrWNvXqgi2mZLtpxG13XT1t2A1PGk7IgbZsC8x4lnjvBDanWUWh83OWJnQcZ3MYcH/exec";
-
 
 let ITEMS = []; // Live data
 
@@ -128,6 +126,40 @@ const editId = document.getElementById('edit-id');
 const submitTxt = document.getElementById('submit-text');
 const title = document.getElementById('form-title');
 const cancelBtn = document.getElementById('cancel-edit');
+
+/* -----------------------------------------
+   THEME TOGGLE (NEW)
+----------------------------------------- */
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  document.documentElement.classList.toggle("dark");
+  localStorage.setItem(
+    "theme",
+    document.documentElement.classList.contains("dark") ? "dark" : "light"
+  );
+});
+
+// Apply saved theme on load
+if (localStorage.getItem("theme") === "dark") {
+  document.documentElement.classList.add("dark");
+}
+
+/* -----------------------------------------
+   PHOTO PREVIEW ON SELECT (NEW)
+----------------------------------------- */
+photoInput.addEventListener("change", () => {
+  const file = photoInput.files[0];
+  if (!file) {
+    photoPreview.classList.add("hidden");
+    photoPreview.src = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    photoPreview.src = event.target.result;
+    photoPreview.classList.remove("hidden");
+  };
+  reader.readAsDataURL(file);
+});
 
 /* -----------------------------------------
    LOAD DATA FROM GOOGLE SHEETS (GET)
@@ -309,6 +341,9 @@ function editItem(id) {
   if (it.photo) {
     photoPreview.src = it.photo;
     photoPreview.classList.remove("hidden");
+  } else {
+    photoPreview.classList.add("hidden");
+    photoPreview.src = "";
   }
 }
 
@@ -318,6 +353,7 @@ function editItem(id) {
 function resetForm() {
   document.getElementById("item-form").reset();
   photoPreview.classList.add("hidden");
+  photoPreview.src = "";
   editId.value = "";
   submitTxt.textContent = "Add";
   title.textContent = "Add New Item";
@@ -351,6 +387,3 @@ loadFromSheet();
 
 </body>
 </html>
-
-
-
